@@ -33,26 +33,29 @@ source(file.path(root_folder, "src/functions/000_setup.R"))
 if (get_sen)
   out_paths_3 <- sen2r(
     gui = TRUE,
-    param_list = "~/edu/courses/src_courses/geoinfo/data/v3-nw-harz.json",
+    param_list = "~/edu/geoinfo/data/harz.json",
     tmpdir = envrmt$path_tmp,
   )
 
 #--- Einlesen der Daten aus den Verzeichnissen
 # RGB stack der beiden Jahre
-rgb = raster::stack(file.path(envrmt$path_data_lev1,"RGB432B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20190724"))),
-                      file.path(envrmt$path_data_lev1,"RGB432B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20200730"))))
+rgb_2019 = raster::stack(file.path(envrmt$path_data_lev1,"RGB432B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20190724"))))
+rgb_2020 = raster::stack(file.path(envrmt$path_data_lev1,"RGB432B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20200730"))))
+names(rgb_2019) = c("red","green","blue")
+names(rgb_2020) = c("red","green","blue")
 # Übergabe des RGB stacks an den Prädiktoren-Stack
-pred_stack = rgb
+pred_stack_2019 = rgb_2019
+pred_stack_2020 = rgb_2020
 
-# Loop über die Tage und Daten
-for (dat in c("20190724","20200730")){
-  for (pat in c("EVI","NDVI","MSAVI2","MSI","NDVI","SAVI")){
-    pred_stack = raster::stack(pred_stack,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = dat))))
-  }
+# Stack-Loop über die Daten
+for (pat in c("EVI","MSAVI2","NDVI","SAVI")){
+  pred_stack_2019 = raster::stack(pred_stack_2019,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20190724"))))
+  pred_stack_2020 = raster::stack(pred_stack_2020,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20200730"))))
 }
 # Zuweisen von leserlichen Namen auf die Datenebenen
-names(rgb) = c("R_2019","G_2019","B_2019","R_2020","G_2020","B_2020")
-names(pred_stack) = c("R_2019","G_2019","B_2019","R_2020","G_2020","B_2020","EVI_2019","NDVI_2019","MSAVI2_2019","MSI_2019","NDVI_2019","SAVI_2019","EVI_2020","NDVI_2020","MSAVI2_2020","MSI_2020","NDVI_2020","SAVI_2020")
+
+names(pred_stack_2019) = c("red","green","blue","EVI","CSI","MSAVI2","NDVI","SAVI")
+names(pred_stack_2020) = c("red","green","blue","EVI","NDVI","MSAVI2","NDVI","SAVI")
 
 #--- Digitalisierung der Trainingsdaten
 # Wald
@@ -79,7 +82,7 @@ saveRDS(train_areas, paste0(envrmt$path_data,"train_areas.rds"))
 tp = sf::st_transform(train_areas,crs = sf::st_crs(pred_stack))
 DF <- raster::extract(stack, tp, df=TRUE)
 tDF = exactextractr::exact_extract(pred_stack, train_areas,  force_df = TRUE,
-                                      include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
+                                   include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
 tDF = dplyr::bind_rows(tDF)
 
 # brute force approach to get rid of NA
