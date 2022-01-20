@@ -12,69 +12,117 @@
 # Copyright: GPL (>= 3)
 #------------------------------------------------------------------------------
 
-# laden der notwendigen Bibliotheken
-## Achtung sie müssen evtl. installiert werden
+#--- laden der notwendigen Bibliotheken
+# Achtung Pakete müssen evtl. manuell installiert werden
 library(envimaR)
 library(rprojroot)
-## setzen des aktuellen Projektverzeichnisses (erstellt mit envimaR) als rootDIR
-#rootDIR = find_rstudio_root_file()
-root_folder = "~/edu/courses/src_courses/geoinfo/"
 library(sen2r)
+#--- Schalter für Download
+get_sen = FALSE
 
-# einlesen des zuvor erstellten setup Srkiptes
+
+## setzen des aktuellen Projektverzeichnisses (erstellt mit envimaR) als root_folder
+#root_folder = find_rstudio_root_file()
+root_folder = "~/edu/geoinfo/"
+
+# einlesen des zuvor erstellten Setup-Skripts
 source(file.path(root_folder, "src/functions/000_setup.R"))
-tmpDir()=envrmt$path_tmp
 
-#safe_is_online("/home/creu/.sen2r/lta_orders/lta_20211213_163011.json")
-json_path <- "~/edu/courses/src_courses/geoinfo/data/harz.json"
+#--- Download der Daten
+# gui = TRUE ruft die GUI zur Kontrolle auf
+if (get_sen)
+  out_paths_3 <- sen2r(
+    gui = TRUE,
+    param_list = "~/edu/courses/src_courses/geoinfo/data/v3-nw-harz.json",
+    tmpdir = envrmt$path_tmp,
+  )
 
-out_paths_3 <- sen2r(
-  gui = TRUE,
-  param_list = json_path,
-)
+#--- Einlesen der Daten aus den Verzeichnissen
+# RGB stack der beiden Jahre
+rgb = raster::stack(file.path(envrmt$path_data_lev1,"RGB432B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20190724"))),
+                      file.path(envrmt$path_data_lev1,"RGB432B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20200730"))))
+# Übergabe des RGB stacks an den Prädiktoren-Stack
+pred_stack = rgb
 
+# Loop über die Tage und Daten
+for (dat in c("20190724","20200730")){
+  for (pat in c("EVI","NDVI","MSAVI2","MSI","NDVI","SAVI")){
+    pred_stack = raster::stack(pred_stack,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = dat))))
+  }
+}
+# Zuweisen von leserlichen Namen auf die Datenebenen
+names(rgb) = c("R_2019","G_2019","B_2019","R_2020","G_2020","B_2020")
+names(pred_stack) = c("R_2019","G_2019","B_2019","R_2020","G_2020","B_2020","EVI_2019","NDVI_2019","MSAVI2_2019","MSI_2019","NDVI_2019","SAVI_2019","EVI_2020","NDVI_2020","MSAVI2_2020","MSI_2020","NDVI_2020","SAVI_2020")
 
+#--- Digitalisierung der Trainingsdaten
+# Wald
+train_area <- mapview::viewRGB(rgb, r = 1, g = 2, b = 3) %>% mapedit::editMap()
+# Hinzufügen der Attribute class (text) und id (integer)
+forest <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "forest", id = 1)
 
-# st = myextent,
-# extent_name = "harz",
-# timewindow = c(as.Date("2019-06-01"), as.Date("2019-07-01")),
-# list_prods stack=raster::stack(paste0(envrmt$path_research_area,"/BOA/",fn))
+# kein wald
+train_area <- mapview::viewRGB(rgb, r = 1, g = 2, b = 3) %>% mapedit::editMap()
+no_forest <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "no_forest", id = 2)
 
-# subsetting the filename(s) of the interesting file(s)
-fn_noext=xfun::sans_ext(basename(list.files(paste0(envrmt$path_data_lev1,"/BOA/"),pattern = "S2B2A")))
-fn = basename(list.files(paste0(envrmt$envrmt$path_data_lev1,"/BOA/"),pattern = "S2B2A"))
+# Kahlschlag
+train_area <- mapview::viewRGB(rgb, r = 4, g = 5, b = 6) %>% mapedit::editMap()
+clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 3)
 
-# creating a raster stack
-stack=raster::stack(paste0(envrmt$path_research_area,"/BOA/",fn))
+# bind it together to one file
+train_areas <- rbind(forest, no_forest, clearcut)
+
+# save results
+saveRDS(train_areas, paste0(envrmt$path_data,"train_areas.rds"))
 
 
 # first we have to project the data into the correct crs
-tp = sf::st_transform(train_areas,crs = sf::st_crs(stack))
-## next we extract the values from every band of the raster stack
-# we force the values to be returned as an data frame
-# because extracting the raster way is very slow
+tp = sf::st_transform(train_areas,crs = sf::st_crs(pred_stack))
 DF <- raster::extract(stack, tp, df=TRUE)
-# we rename the layers for simplicity
-# now we add the "class" category which we need later on for training
-# it was dropped during extraction
-DF_sf =st_as_sf(inner_join(DF,tp))
-# finally we produce a simple data frame without geometry
-DF2 = DF_sf
-st_geometry(DF2)=NULL
+tDF = exactextractr::exact_extract(pred_stack, train_areas,  force_df = TRUE,
+                                      include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
+tDF = dplyr::bind_rows(tDF)
 
-# berechnen der Pberflächen Albedo einer angepassten Regression aus dem Paket 'agriwater'
-# Einlesen der notwendigen Knäle aus dem Sentinel Stack  in einzelne raster ebenen
-# /10000 ist notwendig um die Originalwerte korrekt zu skalieren
-b2 <- stack[[2]]/10000
-b3 <- stack[[3]]/10000
-b4 <- stack[[4]]/10000
-b8 <- stack[[8]]/10000
+# brute force approach to get rid of NA
+tDF = tDF[  rowSums(is.na(tDF)) == 0,]
 
-# lineare regression albedo top of Atmosphere
-alb_top = b2 * 0.32 + b3 * 0.26 + b4 * 0.25 + b8 * 0.17
-# lineare regression oberflächenalbedo
-alb_surface = 0.6054 * alb_top + 0.0797
+# # conversion to a spatial sf object
+# tDF_ex_sf = sf::st_as_sf(tDF_ex ,
+#                          coords = c("x", "y"),
+#                          crs = projection(predStack),
+#                          agr = "constant")
 
-# Visualierung
-plot(alb_top)
-plot(alb_surface)
+
+
+## k-means über RStoolbox
+prediction_kmeans = unsuperClass(pred_stack, nSamples = 25000, nClasses = 3, nStarts = 25,
+                                 nIter = 250, norm = TRUE, clusterMap = TRUE,
+                                 Algorithmus = "MacQueen")
+mapview(prediction_kmeans$map, col = c('darkgreen', 'burlywood', 'green'))
+
+
+
+## random forest via caret
+set.seed(123)
+# split data into train and test data and take only a fraction of them
+trainDat =  tDF[createDataPartition(tDF$class,list = FALSE,p = 0.25),]
+# define a training control object for caret with cross-validation, 10 repeats
+ctrlh = trainControl(method = "cv",
+                     number = 10,
+                     savePredictions = TRUE)
+# train random forest via caret model
+cl = parallel::makeCluster(24)
+doParallel::registerDoParallel(cl)
+set.seed(seed)
+cv_model = train(trainDat[,2:20],
+                 trainDat[,1],
+                 method = "rf",
+                 metric = "Kappa",
+                 trControl = ctrlh,
+                 importance = TRUE)
+stopCluster(cl)
+
+prediction_rf  = predict(pred_stack ,cv_model, progress = "text")
+mapview(prediction_rf,col.regions = c('darkgreen', 'burlywood', 'green'))
+
+
+

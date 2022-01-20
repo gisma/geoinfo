@@ -44,11 +44,14 @@ out_paths_3 <- sen2r(
   # list_prods stack=raster::stack(paste0(envrmt$path_research_area,"/BOA/",fn))
 
 # subsetting the filename(s) of the interesting file(s)
-fn_noext=xfun::sans_ext(basename(list.files(paste0(envrmt$path_data_lev1,"/BOA/"),pattern = "S2B2A")))
-fn = basename(list.files(paste0(envrmt$envrmt$path_data_lev1,"/BOA/"),pattern = "S2B2A"))
+fn_noext_evi = xfun::sans_ext(basename(list.files(paste0(envrmt$path_data_lev1,"/EVI/"),pattern = "S2B2A")))
+fn_evi_2019 = basename(list.files(paste0(envrmt$path_data_lev1,"/EVI/"),pattern = "20190724"))
+fn_evi_2020 = basename(list.files(paste0(envrmt$path_data_lev1,"/EVI/"),pattern = "20200730"))
+fn_rgb_2019 = basename(list.files(paste0(envrmt$path_data_lev1,"/RGB432B/"),pattern = "20190724"))
+fn_rgb_2020 = basename(list.files(paste0(envrmt$path_data_lev1,"/RGB432B/"),pattern = "20200730"))
 
 # creating a raster stack
-stack=raster::stack(paste0(envrmt$path_research_area,"/BOA/",fn))
+stack_rgb_2019 = raster::stack(paste0(envrmt$path_data_lev1,"/RGB432B/",fn_rgb_2019))
 
 
 # first we have to project the data into the correct crs
