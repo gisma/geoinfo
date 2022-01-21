@@ -31,7 +31,7 @@ source(file.path(root_folder, "src/functions/000_setup.R"))
 #--- Download der Daten
 # gui = TRUE ruft die GUI zur Kontrolle auf
 if (get_sen)
-  out_paths_3 <- sen2r(
+   out_paths_3 <- sen2r(
     gui = TRUE,
     param_list = "~/edu/geoinfo/data/harz.json",
     tmpdir = envrmt$path_tmp,
