@@ -30,22 +30,22 @@ source(file.path(root_folder, "src/functions/000_setup.R"))
 
 #--- Download der Daten
 # gui = TRUE ruft die GUI zur Kontrolle auf
-if (get_sen)
+if (get_sen){
    out_paths_3 <- sen2r(
-    gui = TRUE,
+    gui = T,
     param_list = "~/edu/geoinfo/data/harz.json",
     tmpdir = envrmt$path_tmp,
   )
-
+}
 #--- Einlesen der Daten aus den Verzeichnissen
 # RGB stack der beiden Jahre
-pred_stack_2019 = raster::stack(file.path(envrmt$path_data_lev1,"RGB843B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20190724"))))
+pred_stack_2019 = raster::stack(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20190619",full.names = TRUE))
 pred_stack_2020 = raster::stack(file.path(envrmt$path_data_lev1,"RGB843B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20200730"))))
 
 # Stack-Loop über die Daten
 for (pat in c("RGB432B","EVI","MSAVI2","NDVI","SAVI")){
-  pred_stack_2019 = raster::stack(pred_stack_2019,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20190724"))))
-  pred_stack_2020 = raster::stack(pred_stack_2020,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20200730"))))
+  pred_stack_2019 = raster::stack(pred_stack_2019,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20190619"))))
+  #pred_stack_2020 = raster::stack(pred_stack_2020,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20200730"))))
 }
 # Zuweisen von leserlichen Namen auf die Datenebenen
 
