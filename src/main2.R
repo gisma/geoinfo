@@ -17,8 +17,7 @@
 library(envimaR)
 library(rprojroot)
 library(sen2r)
-library(parallel)
-library(doParallel)
+
 #--- Schalter für den Download der sentinel daten
 get_sen = FALSE
 
@@ -153,22 +152,19 @@ ctrlh = trainControl(method = "cv",
                      number = 10,
                      savePredictions = TRUE)
 #--- random forest model training
-# Paralleisierung sollten sie mehr als 2 Prozessorkerne haben können Sie den Wert hochsetzen
-cl = parallel::makeCluster(30)
-doParallel::registerDoParallel(cl)
-set.seed(123)
-# Hiermit wird das Modell "trainiert" also ermittelt
+
+# Hiermit wird das Modell berechnet "trainiert"
 cv_model_2019 = train(trainDat_2019[,2:11], # in den Spalten 2 bis 20 stehen die Trainingsdaten (Prediktoren genannt)
                  trainDat_2019[,1],         # in der Spalte 1 stet die zu Klassizierende Variable (Response genannt)
                  method = "rf",             # Methode hier rf für random forest
                  metric = "Kappa",          # Qualitäts/Performanzmaß KAppa
                  trControl = ctrlh,         # obig erzeugte Trainingssteuerung soll eingelsen werden
                  importance = TRUE)         # Die Bedeung der Variablen wird mit abgespeichert
-parallel::stopCluster(cl) # stopp Parallellisierung
+
 
 # Klassifikation wird häufig auch Vorhersage genannt.
 prediction_rf_2019  = predict(pred_stack_2019 ,cv_model_2019, progress = "text")
-mapview(prediction_rf_2019,col.regions = mapviewPalette("mapviewTopoColors"), at = seq(0, 2, 1), legend = TRUE,alpha.regions = 0.5)
+mapview(prediction_rf_2019,col.regions = mapviewPalette("mapviewSpectralColors"), at = seq(0, 2, 1), legend = TRUE,alpha.regions = 0.5)
 
 
 
