@@ -89,7 +89,8 @@ other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id
 train_areas_2019 <- rbind(clearcut, other)
 
 # Abspeichern als R-internes Datenformat
-saveRDS(train_areas_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
+#saveRDS(train_areas_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
+train_areas_2019 = readRDS(paste0(envrmt$path_data,"train_areas_2019.rds"))
 
 #--- Das gleiche muss für 2020 wiederholt werden
 # Kahlschlag
@@ -111,18 +112,15 @@ tDF_2019 = exactextractr::exact_extract(pred_stack_2019, train_areas_2019,  forc
                                    include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
 #  auch hier wieder zusamenkopieren in eine Datei
 tDF_2019 = dplyr::bind_rows(tDF_2019)
-
 # Löschen von etwaigen Zeilen die NA (no data) Werte enthalten
-tDF = tDF[  rowSums(is.na(tDF)) == 0,]
+tDF_2019 = tDF_2019[  rowSums(is.na(tDF_2019)) == 0,]
 
-#--- 2020 Umprojizieren entsprechend der Raster Datei
+#--- 2020
 tp_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack))
 tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
                                         include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
 tDF_2020 = dplyr::bind_rows(tDF_2020)
-tDF = tDF[  rowSums(is.na(tDF)) == 0,]
-
-
+tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
 
 
 
@@ -142,11 +140,11 @@ ctrlh = trainControl(method = "cv",
                      savePredictions = TRUE)
 #--- random forest model training
 # Paralleisierung sollten sie mehr als 2 Prozessorkerne haben können Sie den Wert hochsetzen
-cl = parallel::makeCluster(2)
+cl = parallel::makeCluster(30)
 doParallel::registerDoParallel(cl)
 set.seed(123)
 # Hiermit wird das Modell "trainiert" also ermittelt
-cv_model_2019 = train(trainDat_2019[,2:20], # in den Spalten 2 bis 20 stehen die Trainingsdaten (Prediktoren genannt)
+cv_model_2019 = train(trainDat_2019[,2:11], # in den Spalten 2 bis 20 stehen die Trainingsdaten (Prediktoren genannt)
                  trainDat_2019[,1],         # in der Spalte 1 stet die zu Klassizierende Variable (Response genannt)
                  method = "rf",             # Methode hier rf für random forest
                  metric = "Kappa",          # Qualitäts/Performanzmaß KAppa
