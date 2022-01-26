@@ -54,8 +54,10 @@ for (pat in c("RGB432B","EVI","MSAVI2","NDVI","SAVI")){
 # Zuweisen von leserlichen Namen auf die Datenebenen
 names(pred_stack_2019) = c("nir","red","green","red","green","blue","EVI","MSAVI2","NDVI","SAVI")
 names(pred_stack_2020) = c("nir","red","green","red","green","blue","EVI","MSAVI2","NDVI","SAVI")
-
-
+saveRDS(pred_stack_2019,paste0(envrmt$path_data,"pred_stack_2019.rds"))
+saveRDS(pred_stack_2020,paste0(envrmt$path_data,"pred_stack_2020.rds"))
+pred_stack_2019 = readRDS(paste0(envrmt$path_data,"pred_stack_2019.rds"))
+pred_stack_2020 = readRDS(paste0(envrmt$path_data,"pred_stack_2020.rds"))
 ##---- Kmeans Klassifikation der Daten----
 
 ## k-means über RStoolbox
