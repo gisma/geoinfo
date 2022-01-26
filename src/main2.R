@@ -109,23 +109,24 @@ tDF_2019
 saveRDS(tDF_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
 
 
-#--- Das gleiche muss für 2020 wiederholt werden
-# Kahlschlag
-train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3,maxpixels =  1693870) %>% mapedit::editMap()
-clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
-train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3) %>% mapedit::editMap()
-other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
-train_areas_2020 <- rbind(clearcut, other)
-train_areas_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack_2020))
-tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
-                                        include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
-tDF_2020 = dplyr::bind_rows(tDF_2020)
-tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
-saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
+# # ---- Das gleiche muss für 2020 wiederholt werden zum digitalisieren und extrahieren bitte ent-kommentieren ----
+
+# # Kahlschlag
+# train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3,maxpixels =  1693870) %>% mapedit::editMap()
+# clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
+# train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3) %>% mapedit::editMap()
+# other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
+# train_areas_2020 <- rbind(clearcut, other)
+# train_areas_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack_2020))
+# tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
+#                                         include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
+# tDF_2020 = dplyr::bind_rows(tDF_2020)
+# tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
+# saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
 
 } else {
   train_areas_2019 = readRDS(paste0(envrmt$path_data,"train_areas_2019.rds"))
-  train_areas_2020 = readRDS(paste0(envrmt$path_data,"train_areas_2020.rds"))
+#  train_areas_2020 = readRDS(paste0(envrmt$path_data,"train_areas_2020.rds"))
 
 }
 
@@ -137,7 +138,7 @@ saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
 set.seed(123)
 
 # Aufsplitten  der Daten in training und test , zufällige extraktion von 25% der Daten
-trainDat_2019 =  tDF_2019[createDataPartition(tDF_2019$class,list = FALSE,p = 0.25),]
+trainDat_2019 =  tDF_2019[createDataPartition(train_areas_2019$class,list = FALSE,p = 0.25),]
 
 # Training Steuerung mit  cross-validation, 10 wiederholungen
 ctrlh = trainControl(method = "cv",
