@@ -15,8 +15,6 @@
 #--- laden der notwendigen Bibliotheken
 # Achtung Pakete müssen evtl. manuell installiert werden
 library(envimaR)
-library(rprojroot)
-library(sen2r)
 
 #--- Schalter für den Download der sentinel daten
 get_sen = FALSE
