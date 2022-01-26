@@ -17,6 +17,8 @@
 library(envimaR)
 library(rprojroot)
 library(sen2r)
+library(parallel)
+library(doParallel)
 #--- Schalter für den Download der sentinel daten
 get_sen = FALSE
 
@@ -162,7 +164,7 @@ cv_model_2019 = train(trainDat_2019[,2:11], # in den Spalten 2 bis 20 stehen die
                  metric = "Kappa",          # Qualitäts/Performanzmaß KAppa
                  trControl = ctrlh,         # obig erzeugte Trainingssteuerung soll eingelsen werden
                  importance = TRUE)         # Die Bedeung der Variablen wird mit abgespeichert
-stopCluster(cl) # stopp Parallellisierung
+parallel::stopCluster(cl) # stopp Parallellisierung
 
 # Klassifikation wird häufig auch Vorhersage genannt.
 prediction_rf_2019  = predict(pred_stack_2019 ,cv_model_2019, progress = "text")
