@@ -143,7 +143,8 @@ saveRDS(tDF_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
 set.seed(123)
 
 # Aufsplitten  der Daten in training und test , zufällige extraktion von 25% der Daten
-trainDat_2019 =  tDF_2019[createDataPartition(train_areas_2019$class,list = FALSE,p = 0.25),]
+trainDat_2019 =  train_areas_2019[createDataPartition(train_areas_2019$class,list = FALSE,p = 0.25),]
+# die response variable muss auf den Datentyp "factor" gesetzt werden
 trainDat_2019$class <- as.factor(trainDat_2019$class)
 # Training Steuerung mit  cross-validation, 10 wiederholungen
 ctrlh = trainControl(method = "cv",
