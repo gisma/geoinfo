@@ -161,8 +161,10 @@ cv_model_2019 = train(trainDat_2019[,2:11], # in den Spalten 2 bis 20 stehen die
 
 
 # Klassifikation wird häufig auch Vorhersage genannt.
-prediction_rf_2019  = predict(pred_stack_2019 ,cv_model_2019, progress = "text")
-mapview(prediction_rf_2019,col.regions = mapviewPalette("mapviewSpectralColors"), at = seq(0, 2, 1), legend = TRUE,alpha.regions = 0.5)
+prediction_rf_2019  = raster::predict(pred_stack_2019 ,cv_model_2019, progress = "text")
 
-
+# Vsualisation
+mapview(prediction_rf_2019,col.regions = mapviewPalette("mapviewTopoColors"), at = seq(0, 2, 1), legend = TRUE,alpha.regions = 0.5)
+tmap_mode("view")
+qtm(raster(prediction_kmeans_2019))
 
