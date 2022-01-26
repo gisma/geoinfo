@@ -39,35 +39,61 @@ if (get_sen){
 }
 #--- Einlesen der Daten aus den Verzeichnissen
 # RGB stack der beiden Jahre
-pred_stack_2019 = raster::stack(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20190619",full.names = TRUE))
-pred_stack_2020 = raster::stack(file.path(envrmt$path_data_lev1,"RGB843B",basename(list.files(file.path(envrmt$path_data_lev1,"RGB432B"),pattern = "20200730"))))
+
+pred_stack_2019 = raster::stack(list.files(file.path(envrmt$path_data_lev1,"RGB843B"),pattern = "20190619",full.names = TRUE))
+pred_stack_2020 = raster::stack(list.files(file.path(envrmt$path_data_lev1,"RGB843B"),pattern = "20200623",full.names = TRUE))
 
 # Stack-Loop über die Daten
 for (pat in c("RGB432B","EVI","MSAVI2","NDVI","SAVI")){
-  pred_stack_2019 = raster::stack(pred_stack_2019,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20190619"))))
-  #pred_stack_2020 = raster::stack(pred_stack_2020,file.path(envrmt$path_data_lev1,pat,basename(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20200730"))))
+  pred_stack_2019 = raster::stack(pred_stack_2019,raster::stack(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20190619",full.names = TRUE)))
+  pred_stack_2020 = raster::stack(pred_stack_2020,raster::stack(list.files(file.path(envrmt$path_data_lev1,pat),pattern = "20200623",full.names = TRUE)))
 }
-# Zuweisen von leserlichen Namen auf die Datenebenen
 
+# Zuweisen von leserlichen Namen auf die Datenebenen
 names(pred_stack_2019) = c("nir","red","green","red","green","blue","EVI","MSAVI2","NDVI","SAVI")
 names(pred_stack_2020) = c("nir","red","green","red","green","blue","EVI","MSAVI2","NDVI","SAVI")
 
-#--- Digitalisierung der Trainingsdaten
+
+##---- Kmeans Klassifikation der Daten----
+
+## k-means über RStoolbox
+# Verändern Sie den Wert von nclasses und vergleichen sie die Ergebnisse
+prediction_kmeans_2019 = unsuperClass(pred_stack_2019, nClasses = 2,norm = TRUE, algorithm = "MacQueen" )
+prediction_kmeans_2020 = unsuperClass(pred_stack_2020, nClasses = 2,norm = TRUE, algorithm = "MacQueen")
+
+# Visualisierung
+mapview(prediction_kmeans_2019$map,col.regions = mapviewPalette("mapviewTopoColors"), at = seq(0, 2, 1), legend = TRUE,alpha.regions = 0.5) +
+mapview(prediction_kmeans_2020$map,col.regions = mapviewPalette("mapviewTopoColors"), at = seq(0, 2, 1), legend = FALSE,alpha.regions = 0.5)
+
+
+
+
+#---- Digitalisierung der Trainingsdaten ----
+
+# Für die überwachte Klassifikation benötigen wir Trainingsgebiete. Sie können Sie wie nachfolgend digitalisieren oder alternativ z.B. QGis verwenden
+
 #--- 2019
 # Kahlschlag
-train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3) %>% mapedit::editMap()
+# Es wird das Falschfarbenkomosit in originaler Auflösung genutzt (maxpixels =  1693870)
+# Bitte beachten Sie dass es (1) deutlich länger lädt und (2) Vegetation in Rot dargestellt wird.
+# Die Kahlschäge sind jetzt grün
+train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3, maxpixels =  1693870) %>% mapedit::editMap()
 # Hinzufügen der Attribute class (text) und id (integer)
 clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
-# kein Wald
+
+# kein Wald: hier gilt es möglichst verteilt übers Bild möglichst alle nicht zu Kahlschlag  gehörenden Flächen zu erfassen.
 train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3) %>% mapedit::editMap()
 other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
-# merge in eine Datei
+
+# rbind  kopiert die beiden obigen Vektorobjekte in eine Datei
 train_areas_2019 <- rbind(clearcut, other)
-# sichern
+
+# Abspeichern als R-internes Datenformat
 saveRDS(train_areas_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
-#--- 2020
+
+#--- Das gleiche muss für 2020 wiederholt werden
 # Kahlschlag
-train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3) %>% mapedit::editMap()
+train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3,maxpixels =  1693870) %>% mapedit::editMap()
 # Hinzufügen der Attribute class (text) und id (integer)
 clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
 # kein Wald
@@ -78,18 +104,18 @@ train_areas_2020 <- rbind(clearcut, other)
 # sichern
 saveRDS(train_areas_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
 
-#--- 2019
-# Projektion
+#--- 2019 Umprojizieren entsprechend der Raster Datei
 tp_2019 = sf::st_transform(train_areas_2019,crs = sf::st_crs(pred_stack))
-# Extraktion
+# Extraktion der Trainingsdaten für die digitalisierten Flächen
 tDF_2019 = exactextractr::exact_extract(pred_stack_2019, train_areas_2019,  force_df = TRUE,
                                    include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
-# merge in eine Datei
+#  auch hier wieder zusamenkopieren in eine Datei
 tDF_2019 = dplyr::bind_rows(tDF_2019)
-# Löschen von NA Zeilen
+
+# Löschen von etwaigen Zeilen die NA (no data) Werte enthalten
 tDF = tDF[  rowSums(is.na(tDF)) == 0,]
 
-#--- 2020
+#--- 2020 Umprojizieren entsprechend der Raster Datei
 tp_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack))
 tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
                                         include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
@@ -97,39 +123,38 @@ tDF_2020 = dplyr::bind_rows(tDF_2020)
 tDF = tDF[  rowSums(is.na(tDF)) == 0,]
 
 
-## k-means über RStoolbox
-# Modell
-prediction_kmeans_2019 = unsuperClass(pred_stack_2019, nClasses = 2,norm = TRUE, algorithm = "MacQueen")
-# Klassifikation
-mapview(prediction_kmeans_2019$map, col = c('darkgreen', 'burlywood', 'green'))
-prediction_kmeans_2020 = unsuperClass(pred_stack_2020, nClasses = 2,norm = TRUE, algorithm = "MacQueen")
-mapview(prediction_kmeans2020$map, col = c('darkgreen', 'burlywood', 'green'))
 
 
-## random forest via caret
-# seed ermglicht reproduzierbaren zufall
+
+## ---- Überwachte  mit Klassifikation Random Forest ----
+
+## Hier wird der Entscheidungsbaum Algorithmus Random Forest über das Utility Paket caret aufgerufen
+
+# das setzen eines seed ermöglicht reproduzierbaren zufall
 set.seed(123)
-# auteilung der daten in training und test , zufällige extraktion von 25% der Daten
+
+# Aufsplitten  der Daten in training und test , zufällige extraktion von 25% der Daten
 trainDat_2019 =  tDF_2019[createDataPartition(tDF_2019$class,list = FALSE,p = 0.25),]
+
 # Training Steuerung mit  cross-validation, 10 wiederholungen
 ctrlh = trainControl(method = "cv",
                      number = 10,
                      savePredictions = TRUE)
 #--- random forest model training
-# Paralleisierung
-cl = parallel::makeCluster(4)
+# Paralleisierung sollten sie mehr als 2 Prozessorkerne haben können Sie den Wert hochsetzen
+cl = parallel::makeCluster(2)
 doParallel::registerDoParallel(cl)
 set.seed(123)
-# Modelltraining
-cv_model_2019 = train(trainDat_2019[,2:20],
-                 trainDat_2019[,1],
-                 method = "rf",
-                 metric = "Kappa",
-                 trControl = ctrlh,
-                 importance = TRUE)
-stopCluster(cl)
+# Hiermit wird das Modell "trainiert" also ermittelt
+cv_model_2019 = train(trainDat_2019[,2:20], # in den Spalten 2 bis 20 stehen die Trainingsdaten (Prediktoren genannt)
+                 trainDat_2019[,1],         # in der Spalte 1 stet die zu Klassizierende Variable (Response genannt)
+                 method = "rf",             # Methode hier rf für random forest
+                 metric = "Kappa",          # Qualitäts/Performanzmaß KAppa
+                 trControl = ctrlh,         # obig erzeugte Trainingssteuerung soll eingelsen werden
+                 importance = TRUE)         # Die Bedeung der Variablen wird mit abgespeichert
+stopCluster(cl) # stopp Parallellisierung
 
-# Klassifikation
+# Klassifikation wird häufig auch Vorhersage genannt.
 prediction_rf_2019  = predict(pred_stack_2019 ,cv_model_2019, progress = "text")
 mapview(prediction_rf_2019,col.regions = c('darkgreen', 'burlywood', 'green'))
 
