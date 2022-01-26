@@ -93,16 +93,20 @@ train_areas_2019 <- rbind(clearcut, other)
 # Umprojizieren auf die Raster Datei
 train_areas_2019 = sf::st_transform(train_areas_2019,crs = sf::st_crs(pred_stack_2019))
 
+
 # Extraktion der Trainingsdaten für die digitalisierten Flächen
 tDF_2019 = exactextractr::exact_extract(pred_stack_2019, train_areas_2019,  force_df = TRUE,
                                         include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
 #  auch hier wieder zusamenkopieren in eine Datei
 tDF_2019 = dplyr::bind_rows(tDF_2019)
+
 # Löschen von etwaigen Zeilen die NA (no data) Werte enthalten
-tDF_2019 = tDF_2019[  rowSums(is.na(tDF_2019)) == 0,]
+tDF_2019 = tDF_2019[complete.cases(tDF_2019) ,]
+tDF_2019 = tDF_2019[ ,rowSums(is.na(tDF_2019)) == 0]
 
 # check der extrahierten Daten
-tDF_2019
+summary(tDF_2019)
+mapview(train_areas_2019)+pred_stack_2019[[1]]
 
 # Abspeichern als R-internes Datenformat
 # ist im Repo hinterlegt und kann desahlb (zeile drunter) eingeladen werden
@@ -133,13 +137,14 @@ saveRDS(tDF_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
 ## ---- Überwachte  mit Klassifikation Random Forest ----
 
 ## Hier wird der Entscheidungsbaum Algorithmus Random Forest über das Utility Paket caret aufgerufen
+## ACHTUNG Das Beispiel ist nur für 2019
 
 # das setzen eines seed ermöglicht reproduzierbaren zufall
 set.seed(123)
 
 # Aufsplitten  der Daten in training und test , zufällige extraktion von 25% der Daten
 trainDat_2019 =  tDF_2019[createDataPartition(train_areas_2019$class,list = FALSE,p = 0.25),]
-
+trainDat_2019$class <- as.factor(trainDat_2019$class)
 # Training Steuerung mit  cross-validation, 10 wiederholungen
 ctrlh = trainControl(method = "cv",
                      number = 10,

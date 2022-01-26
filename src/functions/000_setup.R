@@ -91,3 +91,4 @@ envrmt = envimaR::createEnvi(root_folder = root_folder,
 raster::rasterOptions(tmpdir = envrmt$path_tmp)
 # suppres gdal warnings
 rgdal::set_thin_PROJ6_warnings(TRUE)
+mapviewOptions(fgb = FALSE)
