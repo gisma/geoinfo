@@ -117,23 +117,25 @@ saveRDS(tDF_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
 # # ---- Das gleiche muss für 2020 wiederholt werden zum digitalisieren und extrahieren bitte ent-kommentieren ----
 
 # # Kahlschlag
-# train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3,maxpixels =  1693870) %>% mapedit::editMap()
-# clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
-# train_area <- mapview::viewRGB(pred_stack_2020, r = 1, g = 2, b = 3) %>% mapedit::editMap()
-# other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
-# train_areas_2020 <- rbind(clearcut, other)
-# train_areas_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack_2020))
-# tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
-#                                         include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
-# tDF_2020 = dplyr::bind_rows(tDF_2020)
-# tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
-# saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
+train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g =5, b = 6,maxpixels =  1693870) %>% mapedit::editMap()
+clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
+train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g = 5, b = 6) %>% mapedit::editMap()
+other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
+train_areas_2020 <- rbind(clearcut, other)
+train_areas_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack_2020))
+tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
+                                        include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
+tDF_2020 = dplyr::bind_rows(tDF_2020)
+tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
+saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
 
 } else {
   train_areas_2019 = readRDS(paste0(envrmt$path_data,"train_areas_2019.rds"))
-#  train_areas_2020 = readRDS(paste0(envrmt$path_data,"train_areas_2020.rds"))
+  train_areas_2020 = readRDS(paste0(envrmt$path_data,"train_areas_2020.rds"))
 
 }
+
+mapview(train_areas_2020,fgb=F)
 
 ## ---- Überwachte  mit Klassifikation Random Forest ----
 
@@ -164,10 +166,65 @@ cv_model_2019 = train(trainDat_2019[,2:11], # in den Spalten 2 bis 20 stehen die
 
 # Klassifikation wird häufig auch Vorhersage genannt.
 prediction_rf_2019  = raster::predict(pred_stack_2019 ,cv_model_2019, progress = "text")
+names(prediction_kmeans_2019) = c("clearcut","other")
+
+# Aufsplitten  der Daten in training und test , zufällige extraktion von 25% der Daten
+trainDat_2020 =  train_areas_2020[createDataPartition(train_areas_2020$class,list = FALSE,p = 0.25),]
+# die response variable muss auf den Datentyp "factor" gesetzt werden
+trainDat_2020$class <- as.factor(trainDat_2020$class)
+# Training Steuerung mit  cross-validation, 10 wiederholungen
+ctrlh = trainControl(method = "cv",
+                     number = 10,
+                     savePredictions = TRUE)
+#--- random forest model training
+
+# Hiermit wird das Modell berechnet "trainiert"
+cv_model_2020 = train(trainDat_2020[,2:11], # in den Spalten 2 bis 20 stehen die Trainingsdaten (Prediktoren genannt)
+                      trainDat_2020[,1],         # in der Spalte 1 stet die zu Klassizierende Variable (Response genannt)
+                      method = "rf",             # Methode hier rf für random forest
+                      metric = "Kappa",          # Qualitäts/Performanzmaß KAppa
+                      trControl = ctrlh,         # obig erzeugte Trainingssteuerung soll eingelsen werden
+                      importance = TRUE)         # Die Bedeung der Variablen wird mit abgespeichert
+
+
+# Klassifikation wird häufig auch Vorhersage genannt.
+prediction_rf_2020  = raster::predict(pred_stack_2020 ,cv_model_2020, progress = "text")
+
 
 # Vsualisation
 tmap_mode("view")
-qtm(prediction_rf_2019)
-qtm(prediction_kmeans_2019$map)
-mapview(prediction_rf_2019,col.regions = mapviewPalette("mapviewTopoColors"), at = seq(0, 2, 1), legend = TRUE,alpha.regions = 0.5)
+w1 = qtm(prediction_rf_2019)
+w2 = qtm(prediction_kmeans_2019$map)
+w3 = qtm(prediction_rf_2020)
+w4 = qtm(prediction_kmeans$map)
+tmap_arrange(w1, w2, w3, w4, widths = c(.2, .8))
+
+
+# maximum likelihood classification
+trainDat_2020 = sp::coordinates(trainDat_2020)<-~x+y
+crs(trainDat_2020) = crs(pred_stack_2020)
+mapview(trainDat_2020)
+
+
+prediction_mlc       <- superClass(pred_stack_2020, trainData = trainDat_2020[,1:11], responseCol = "class",
+                                  model = "mlc", tuneLength = 1, trainPartition = 0.5)
+
+prediction_mlc
+
+## Plots
+mapview(prediction_mlc$map, col = c('darkgreen', 'burlywood'),FGB =F) +mapview(prediction_rf_2020,col.regions = mapviewPalette("mapviewTopoColors"), at = seq(0, 2, 1), legend = TRUE,alpha.regions = 0.5,fgb =F)
+
+
+comp1 = prediction_rf_2020 - prediction_rf_2019
+
+plot(comp1)
+
+compare_1 = lsp_compare(st_as_stars(prediction_rf_2020), st_as_stars(prediction_rf_2019),
+                        type = "cove", dist_fun = "jensen-shannon",
+                        window = 10, threshold = 0.9)
+
+my_breaks = c(0, 0.001, 0.01, 0.1, 1.01)
+tm_shape(compare_1) +
+  tm_raster("dist", breaks = my_breaks, palette = "-viridis") +
+  tm_layout(legend.outside = TRUE)
 
