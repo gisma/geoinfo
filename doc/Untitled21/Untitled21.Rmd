@@ -1,0 +1,50 @@
+---
+title: "Our great idea"
+author:
+- familyname: Reudenbach
+  othernames: Christoph
+  address: Philipps University of Marburg
+  email: reudenbach@uni-marburg.de
+  correspondingauthor: true
+  qualifications: none
+abstract: "A brief story of whatever"
+keywords: "blah, blah"
+wpnumber: 001/20222
+blind: false
+cover: true
+toc: true
+bibliography: references.bib
+biblio-style: authoryear-comp
+output:
+  monash::workingpaper:
+    fig_caption: yes
+    fig_height: 5
+    fig_width: 8
+    includes:
+      in_header: preamble.tex
+    keep_tex: yes
+    number_sections: yes
+    citation_package: biblatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE, messages=FALSE, warning=FALSE)
+# Make sure you have the latest version of rmarkdown and bookdown
+#devtools::install_github("rstudio/rmarkdown")
+#devtools::install_github("rstudio/bookdown")
+library(ggplot2)
+```
+
+
+# Introduction
+
+In a famous paper, @BC64 introduced a family of transformations \dots
+
+```{r histogram, fig.cap="Nice histogram", message=FALSE, warning=FALSE}
+qplot(exp(rnorm(200)))
+```
+
+Consider the logNormal data plotted in Figure \ref{fig:histogram}.
+
+$$s^2 = \sum_{i=1}^n (x_i-\bar{x})^2$$
+
