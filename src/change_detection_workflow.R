@@ -1,15 +1,17 @@
 #------------------------------------------------------------------------------
 # Type: script
-# Name: get_sentinel.R
-# Author: Chris Reudenbach, creuden@gmail.com
-# Description:  retrieves sentinel data
-#               and exemplary defines AOI and calculates albedo
+# Name: change_detection_workflow.R
+# Description:  basic reproducible Change Detection workflow for Sentinel data
+#               data download -> digitizing training areas ->
+#               extracting and preparing training data ->
+#               example classifications: cluster analysis, random forest, MaxLike
+#               quality assesment and comparison with basic tools, kappa, and motif
+#               basic visualisation examples with tmap and mapview
 # Dependencies:
 # Output: original sentinel tile
 #         AOI window of this tile (research_area)
-#         top of atmosphere albedo AOI
-#         surface albedo AOI
-# Copyright: GPL (>= 3)
+#         training areas
+# Copyright: GPL (>= 3), Chris Reudenbach, creuden@gmail.com
 #------------------------------------------------------------------------------
 
 #--- laden der notwendigen Bibliotheken
