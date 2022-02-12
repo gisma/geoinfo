@@ -1,4 +1,4 @@
-#------------------------------------------------------------------------------
+#
 # Type: script
 # Name: change_detection_workflow.R
 # Description:  basic reproducible Change Detection workflow for Sentinel data
@@ -12,7 +12,7 @@
 #         AOI window of this tile (research_area)
 #         training areas
 # Copyright: GPL (>= 3), Chris Reudenbach, creuden@gmail.com
-#------------------------------------------------------------------------------
+#
 
 
 #--- laden der notwendigen Bibliotheken
@@ -39,7 +39,10 @@ source(file.path(root_folder, "src/functions/000_setup.R"))
 # weitere Parameter
 
 # größe der Aggregationsfesnter für die CD Auswertung
-win_size = 10
+# Distanz-Schwellenwert "dist" ist abhängig von wins_size
+# je kleiner win_size desto größer der Schwellenwert
+
+win_size = 25
 
 #--- Download der Daten
 # gui = TRUE ruft die GUI zur Kontrolle auf
@@ -270,16 +273,17 @@ qtm(comp1)+
   tm_grid()
 
 
-# Extraktion der KLASSENNAMEN
+# ---- CDA Extraktion der KLASSENNAMEN ----
 categories = levels(prediction_rf_2019)[[1]]$value
 categories
 
-# Berechnung der Kontingenz Tabelle mit raster Basisfunktion
+# ---- Berechnung der Vierfeld Tabelle mit raster Basisfunktion ----
 ct = raster::crosstab(prediction_rf_2020,prediction_rf_2019)
 rownames(ct) = categories
 colnames(ct) = categories
 ct
 
+# ---- kappa ----
 # Vergleich der Übereinstimmung unterschiedlicher Klassifikationen
 # (hier MaxLike und RF) mit Hilfe diverser Kappa Werte
 # https://giswerk.org/doku.php?id=r:r-tutorials:calculatekappa
@@ -289,10 +293,10 @@ kstat(prediction_mlc_2019$map,prediction_rf_2019, perCategory = FALSE)
 kstat(prediction_mlc_2020$map,prediction_rf_2020,perCategory = FALSE)
 
 
+# ---- Berechnung change from - to ----
 # Die Darstellung der Veränderungen von jeder Klasse zu jeder Klasse ist mit
 # "Bordmitteln"  etwas aufwendiger. Da jede Kategorie mit jeder verglichen werden soll
 # müssen dazu ein paar Hilfsfunktionen und Schleifen (loops) eingesetzt werden
-
 # Hilfsfunktion changefrom() vergleicht je zwei Raster auf die Kategorien i,j
 changefrom=function(r1,r2,i,j){r1==i & r2==j}
 
@@ -302,7 +306,7 @@ changefrom=function(r1,r2,i,j){r1==i & r2==j}
 r = lapply(1:length(categories), function(i){lapply(1:length(categories), function(j){changefrom(prediction_rf_2019, prediction_rf_2020, i,j)})})
 r
 
-## ---- Visualsierung der Kreuztabellierten Von-Zu-Raster ----
+# ---- Visualsierung der Kreuztabellierten Von-Zu-Raster ----
 # Plotten der Raster hierzu werden erneut alle Kategorien einzeln geplottet
 # i und j sind hilfsvariablen um die korrekten Raster Layer ansprechen zu können.
 # t ist eine Hilfvariable um eine Liste für die Ergebnisbilder hochzählen zu können
@@ -334,7 +338,7 @@ for(cat1 in categories)  { # für jede Kategorie
 tmap::tmap_arrange(m,sync = TRUE)
 
 
-## ---- Analyse von Veränderungen mit dem paket motif ----
+# ---- Analyse von Veränderungen mit dem paket motif ----
 # lsp_compare vergleicht zwei (oder mehr) kategoriale Karten
 # (change detection klassifikationen etc.) miteinander und nutzt für die
 # Ausgabe der Wahrscheinlichkeiten verschiedener räumlicher Aggregierungsstufen
@@ -366,11 +370,11 @@ tm_compare2 = tm_shape(mrf_compare_2020_2019) +
 
 tm_compare2
 
-## --- Detail-Analyse teil 1
+# ---- Detail-Analyse Teil 1 ----
 # Identifikation der Gebiete (Referenz ist win_size) die maximale Veränderungen aufweisen
 # im Beispiel soll  "dist" soll größer 0.001 sein (logarithmische Skalierung!)
 lc_am_compare_sel = st_as_sf(mrf_compare_2020_2019) %>%
-  subset(dist > 0.5)
+  subset(dist > 0.01)
 
 # Sortierung nach Größe
 lc_am_compare_sel = lc_am_compare_sel[order(lc_am_compare_sel$dist,decreasing = TRUE), ]
@@ -384,21 +388,26 @@ tm_plot(sel=lc_am_compare_sel[1:nrow(lc_am_compare_sel),],ov = T)
 tm_plot(sel=lc_am_compare_sel[1:nrow(lc_am_compare_sel),],vt = "view",ov = T)
 
 
-## --- Detail-Analyse teil 2
-# Extraktion der top 10 change Gebiete
-lc=list()
-for (i in 1:10){
-  lc[[i]] = lsp_extract(c(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020)), window = win_size, id = lc_am_compare_sel$id[i])
-}
+# ---- Visualsierng Detail-Analyse ----
+# Extraktion nach der sortierten Liste lc_comapare_sel  werden die top 10
+# change detection hotspots Daten extrahiert und in die liste lc geschrieben
+lc = lapply(seq(1:10),
+            function(i){
+              lsp_extract(c(st_as_stars(prediction_rf_2019),
+                            st_as_stars(prediction_rf_2020)),
+                          window = win_size,
+                          id = lc_am_compare_sel$id[i])
+            })
 
-# Erzeugen der Graphiken als Liste
-tmv = list()
-for (i in 1:4){
-  tmv[[i]] = tm_plot(lc[[i]])}
+# Erzeugen der top 3 Change Detection Hotspots KArten-Ausschnitte
+tm_lc = lapply(seq(1:3),
+             function(i){
+               tm_plot(lc[[i]])
+             })
 
-# plotten der aller paare
-tmap_arrange(tmv)
-tmap_options()
+# plotten der erzeugten Karten
+tmap_arrange(tm_lc)
+
 
 #####
 
