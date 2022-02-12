@@ -14,6 +14,7 @@
 # Copyright: GPL (>= 3), Chris Reudenbach, creuden@gmail.com
 #------------------------------------------------------------------------------
 
+
 #--- laden der notwendigen Bibliotheken
 # Achtung Pakete müssen evtl. manuell installiert werden
 library(envimaR)
@@ -38,12 +39,12 @@ source(file.path(root_folder, "src/functions/000_setup.R"))
 # weitere Parameter
 
 # größe der Aggregationsfesnter für die CD Auswertung
-win_size = 20
+win_size = 50
 
 #--- Download der Daten
 # gui = TRUE ruft die GUI zur Kontrolle auf
 if (get_sen){
-   out_paths_3 <- sen2r(
+  out_paths_3 <- sen2r(
     gui = T,
     param_list = "~/edu/geoinfo/data/harz.json",
     tmpdir = envrmt$path_tmp,
@@ -58,16 +59,15 @@ pred_stack_2020 = raster::stack(list.files(file.path(envrmt$path_data_lev1,"RGB8
 # Einlesen der Corine Daten
 # Für den Download ist ein Konto notwendig https://land.copernicus.eu/pan-european/corine-land-cover
 # angenommen die Daten liegen im level0 Verzeichnis
-
 if (!file.exists(file.path(envrmt$path_data_lev0,"u2018_clc2018_v2020_20u1_raster100m/DATA/U2018_CLC2018_V2020_20u1.tif"))){
-corine_eu = raster(file.path(envrmt$path_data_lev0,"u2018_clc2018_v2020_20u1_raster100m/DATA/U2018_CLC2018_V2020_20u1.tif"))
-tmp = projectRaster(pred_stack_2019[[1]],crs = crs(corine_eu))
-corine_crop = raster::crop(corine_eu,tmp)
-corine_utm = projectRaster(corine_crop,crs = crs(pred_stack_2019))
-corine = resample(corine_utm,pred_stack_2019[[1]])
-raster::writeRaster(corine,file.path(envrmt$path_data_lev0,"/corine.tif"),overwrite=TRUE)
+  corine_eu = raster(file.path(envrmt$path_data_lev0,"u2018_clc2018_v2020_20u1_raster100m/DATA/U2018_CLC2018_V2020_20u1.tif"))
+  tmp = projectRaster(pred_stack_2019[[1]],crs = crs(corine_eu))
+  corine_crop = raster::crop(corine_eu,tmp)
+  corine_utm = projectRaster(corine_crop,crs = crs(pred_stack_2019))
+  corine = resample(corine_utm,pred_stack_2019[[1]])
+  raster::writeRaster(corine,file.path(envrmt$path_data_lev0,"/corine.tif"),overwrite=TRUE)
 } else{
-corine = raster::raster(file.path(envrmt$path_data_lev0,"/corine.tif"))
+  corine = raster::raster(file.path(envrmt$path_data_lev0,"/corine.tif"))
 }
 # Erstellen einer Wald-Maske
 # Agro-forestry areas code=22, Broad-leaved forest code=23,
@@ -105,18 +105,16 @@ prediction_kmeans_2020 = unsuperClass(pred_stack_2020,
                                       algorithm = "MacQueen")
 
 # Visualisierung mit Mapview: mit dem + Zeichen können beliebige Raster und Vektor-Datenebnenen kombiniert werden
-# Offensichtlich ist der Clusteralgorithmus überfordert mit zwei Klassen ein sinnvolles Ergebnis zu erzeugen
+# Bei der Ansicht fällt auf dass offensichtlich der Clusteralgorithmus keine zielführenden Klassen der Einstellung nClasses=2 erzeugt
 mapview(mask*prediction_kmeans_2019$map,
-        col.regions = mapviewPalette("mapviewRasterColors"),
-        at = seq(0, nclasses, 1),
-        legend = TRUE,
-        alpha.regions = 1,
-        maxpixels =  1693870) +  # neue Ebene
+        at = seq(0, nclasses, 1), # Anzahl der Legendenklassen
+        legend = TRUE,            # Legende zeigen
+        alpha.regions = 1,        # layer undurchsichtig
+        maxpixels =  1693870) +  #  volle auflösung
   viewRGB(mask * pred_stack_2019,
           r=4,g=5,b=6,
           maxpixels =  1693870) +  # neue Ebene
   mapview(mask*prediction_kmeans_2020$map,
-          col.regions = mapviewPalette("mapviewRasterColors"),
           at = seq(0, nclasses, 1),
           legend = FALSE,
           alpha.regions = 1,
@@ -127,62 +125,62 @@ mapview(mask*prediction_kmeans_2019$map,
 
 #---- Digitalisierung der Trainingsdaten ----
 if (digitize) {
-# Für die überwachte Klassifikation benötigen wir Trainingsgebiete. Sie können Sie wie nachfolgend digitalisieren oder alternativ z.B. QGis verwenden
+  # Für die überwachte Klassifikation benötigen wir Trainingsgebiete. Sie können Sie wie nachfolgend digitalisieren oder alternativ z.B. QGis verwenden
 
-#--- 2019
-# Kahlschlag
-# Es wird das Falschfarbenkomosit in originaler Auflösung genutzt (maxpixels =  1693870)
-# Bitte beachten Sie dass es (1) deutlich länger lädt und (2) Vegetation in Rot dargestellt wird.
-# Die Kahlschäge sind jetzt grün
-train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3, maxpixels =  1693870) %>% mapedit::editMap()
-# Hinzufügen der Attribute class (text) und id (integer)
-clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
+  #--- 2019
+  # Kahlschlag
+  # Es wird das Falschfarbenkomosit in originaler Auflösung genutzt (maxpixels =  1693870)
+  # Bitte beachten Sie dass es (1) deutlich länger lädt und (2) Vegetation in Rot dargestellt wird.
+  # Die Kahlschäge sind jetzt grün
+  train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3, maxpixels =  1693870) %>% mapedit::editMap()
+  # Hinzufügen der Attribute class (text) und id (integer)
+  clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
 
-# other: hier gilt es möglichst verteilt übers Bild möglichst alle nicht zu Kahlschlag  gehörenden Flächen zu erfassen.
-train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3) %>% mapedit::editMap()
-other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
+  # other: hier gilt es möglichst verteilt übers Bild möglichst alle nicht zu Kahlschlag  gehörenden Flächen zu erfassen.
+  train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3) %>% mapedit::editMap()
+  other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
 
-# rbind  kopiert die beiden obigen Vektorobjekte in eine Datei
-train_areas_2019 <- rbind(clearcut, other)
+  # rbind  kopiert die beiden obigen Vektorobjekte in eine Datei
+  train_areas_2019 <- rbind(clearcut, other)
 
-# Umprojizieren auf die Raster Datei
-train_areas_2019 = sf::st_transform(train_areas_2019,crs = sf::st_crs(pred_stack_2019))
-
-
-# Extraktion der Trainingsdaten für die digitalisierten Flächen
-tDF_2019 = exactextractr::exact_extract(pred_stack_2019, train_areas_2019,  force_df = TRUE,
-                                        include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
-#  auch hier wieder zusamenkopieren in eine Datei
-tDF_2019 = dplyr::bind_rows(tDF_2019)
-
-# Löschen von etwaigen Zeilen die NA (no data) Werte enthalten
-tDF_2019 = tDF_2019[complete.cases(tDF_2019) ,]
-tDF_2019 = tDF_2019[ ,rowSums(is.na(tDF_2019)) == 0]
-
-# check der extrahierten Daten
-summary(tDF_2019)
-mapview(train_areas_2019)+pred_stack_2019[[1]]
-
-# Abspeichern als R-internes Datenformat
-# ist im Repo hinterlegt und kann desahlb (zeile drunter) eingeladen werden
-saveRDS(tDF_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
+  # Umprojizieren auf die Raster Datei
+  train_areas_2019 = sf::st_transform(train_areas_2019,crs = sf::st_crs(pred_stack_2019))
 
 
-# # ---- Das gleiche muss für 2020 wiederholt werden zum digitalisieren und extrahieren bitte ent-kommentieren ----
+  # Extraktion der Trainingsdaten für die digitalisierten Flächen
+  tDF_2019 = exactextractr::exact_extract(pred_stack_2019, train_areas_2019,  force_df = TRUE,
+                                          include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
+  #  auch hier wieder zusamenkopieren in eine Datei
+  tDF_2019 = dplyr::bind_rows(tDF_2019)
 
-# # Kahlschlag
-train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g =5, b = 6,maxpixels =  1693870) %>% mapedit::editMap()
-clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
-train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g = 5, b = 6) %>% mapedit::editMap()
-other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
-train_areas_2020 <- rbind(clearcut, other)
-train_areas_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack_2020))
-tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
-                                        include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
-tDF_2020 = dplyr::bind_rows(tDF_2020)
-tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
-saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
-#names(train_areas_2019) = c("class","nir","red_1","green_1","red_2","green_2","blue","EVI","MSAVI2","NDVI","SAVI","X","Y","cell","coverage_fraction")
+  # Löschen von etwaigen Zeilen die NA (no data) Werte enthalten
+  tDF_2019 = tDF_2019[complete.cases(tDF_2019) ,]
+  tDF_2019 = tDF_2019[ ,rowSums(is.na(tDF_2019)) == 0]
+
+  # check der extrahierten Daten
+  summary(tDF_2019)
+  mapview(train_areas_2019)+pred_stack_2019[[1]]
+
+  # Abspeichern als R-internes Datenformat
+  # ist im Repo hinterlegt und kann desahlb (zeile drunter) eingeladen werden
+  saveRDS(tDF_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
+
+
+  # # ---- Das gleiche muss für 2020 wiederholt werden zum digitalisieren und extrahieren bitte ent-kommentieren ----
+
+  # # Kahlschlag
+  train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g =5, b = 6,maxpixels =  1693870) %>% mapedit::editMap()
+  clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
+  train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g = 5, b = 6) %>% mapedit::editMap()
+  other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
+  train_areas_2020 <- rbind(clearcut, other)
+  train_areas_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack_2020))
+  tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
+                                          include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
+  tDF_2020 = dplyr::bind_rows(tDF_2020)
+  tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
+  saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
+  #names(train_areas_2019) = c("class","nir","red_1","green_1","red_2","green_2","blue","EVI","MSAVI2","NDVI","SAVI","X","Y","cell","coverage_fraction")
 } else {
   train_areas_2019 = readRDS(paste0(envrmt$path_data,"train_areas_2019.rds"))
   train_areas_2020 = readRDS(paste0(envrmt$path_data,"train_areas_2020.rds"))
@@ -210,11 +208,11 @@ ctrlh = trainControl(method = "cv",
 
 #--- random forest model training
 cv_model_2019 = train(trainDat_2019[,2:11], # in den Spalten 2 bis 20 stehen die Trainingsdaten (Prediktoren genannt)
-                 trainDat_2019[,1],         # in der Spalte 1 steht die zu klassizierende Variable (Response genannt)
-                 method = "rf",             # Methode hier rf für random forest
-                 metric = "Kappa",          # Qualitäts/Performanzmaß KAppa
-                 trControl = ctrlh,         # obig erzeugte Trainingssteuerung soll eingelsen werden
-                 importance = TRUE)         # Die Bedeung der Variablen wird mit abgespeichert
+                      trainDat_2019[,1],         # in der Spalte 1 steht die zu klassizierende Variable (Response genannt)
+                      method = "rf",             # Methode hier rf für random forest
+                      metric = "Kappa",          # Qualitäts/Performanzmaß KAppa
+                      trControl = ctrlh,         # obig erzeugte Trainingssteuerung soll eingelsen werden
+                      importance = TRUE)         # Die Bedeung der Variablen wird mit abgespeichert
 # Klassifikation (auch Vorhersage genannt)
 prediction_rf_2019  = raster::predict(pred_stack_2019 ,cv_model_2019, progress = "text")
 
@@ -257,7 +255,7 @@ crs(trainDat_2020) = crs(pred_stack_2020)
 
 # superClass method "mlc" berechnet die Statisik und klassifiziert in einem aufruf
 prediction_mlc_2019       <- superClass(pred_stack_2019, trainData = trainDat_2019[,1:11], responseCol = "class",
-                                  model = "mlc", tuneLength = 1, trainPartition = 0.5)
+                                        model = "mlc", tuneLength = 1, trainPartition = 0.5)
 prediction_mlc_2020       <- superClass(pred_stack_2020, trainData = trainDat_2020[,1:11], responseCol = "class",
                                         model = "mlc", tuneLength = 1, trainPartition = 0.5)
 # Ergebnisse der rf Klassifikation
@@ -316,13 +314,13 @@ for(cat1 in categories)  { # für jede Kategorie
   for(cat2 in categories)  { # mit jeder Kategorie
     # plotte die Karte
     m[[t]]  = tm_shape(st_as_stars(r[[i]][[j]])) +
-    tm_raster(col = "layer",palette = "viridis",style = "cat",
-              title = if(cat1==cat2) {
-                paste("no changes " , unique(cat1,cat2))
-              }
-              else if (cat1!=cat2) {
-                paste(cat1," -> ",cat2)
-              })
+      tm_raster(col = "layer",palette = "viridis",style = "cat",
+                title = if(cat1==cat2) {
+                  paste("no changes " , unique(cat1,cat2))
+                }
+                else if (cat1!=cat2) {
+                  paste(cat1," -> ",cat2)
+                })
     # zähle die innere schleife hoch
     j = j + 1
     # zähle die ergebnisliste hoch
@@ -349,12 +347,11 @@ tmap::tmap_arrange(m,sync = TRUE)
 # miteinander und nutzt für die Ausgabe der Wahrscheinlichkeiten verschiedene
 # Aggregierungsstufen und Wahrscheinlichkeitsschwellenwert eines zu in dist_fun bestimmten Entfernungsmasses
 mrf_compare_2020_2019 = lsp_compare(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020),
-                        type = "cove", dist_fun = "jensen-shannon",
-                        window = win_size, threshold = 0.9)
-
+                                    type = "cove", dist_fun = "jensen-shannon",
+                                    window = win_size, threshold = 0.9)
 
 # Visualisierung der Gesamtwahrscheinlichkeiten
-# logarithmische Skala
+# Achtung logarithmische Skala
 tmap_mode("plot")
 tm_compare2 = tm_shape(mrf_compare_2020_2019) +
   tm_raster("dist",
@@ -372,42 +369,35 @@ tm_compare2
 # Identifikation der Gebiete (Referenz ist win_size) die maximale Veränderungen aufweisen
 # hier der logarithmisch skalierte Paramter "dist" soll größer 0.1 sein
 lc_am_compare_sel = st_as_sf(mrf_compare_2020_2019) %>%
-  subset(dist > 0.4)
+  subset(dist > 0.001)
 # Sortierung des Ergebnis nach Größe
-lc_am_compare_sel = lc_am_compare_sel[order(lc_am_compare_sel$dist,
-                                            decreasing = TRUE), ]
-# Extraktion der Top 3 Gebiete
+lc_am_compare_sel = lc_am_compare_sel[order(lc_am_compare_sel$dist,decreasing = TRUE), ]
+
+# Plotten der top ten gebiete
+tm_plot(sel=lc_am_compare_sel[1:10,],ov = T)
+
+# Extraktion der top 10 change Gebiete
 lc=list()
-for (i in 1:length(lc_am_compare_sel$id)){
-lc[[i]] = lsp_extract(c(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020)), window = win_size, id = lc_am_compare_sel$id[i])
-# lc_2 = lsp_extract(c(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020)), window = win_size, id = lc_am_compare_sel$id[2])
-# lc_3 = lsp_extract(c(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020)), window = win_size, id = lc_am_compare_sel$id[3])
-}
-# Interaktive Visualisierung
-tm_plot = function(x,vt="plot",ls=FALSE,lo=FALSE){
-  tmap_mode(vt)
-    tm_shape(x) +
-    tm_raster(style = "cat",
-              title = "Land cover:",
-              legend.is.portrait = FALSE) +
-    tm_facets(ncol = 2) +
-    tm_layout(legend.show = ls,
-              legend.only = lo,
-              legend.position = c(.0, 0.15),
-              legend.outside.position = "bottom",
-              legend.outside = T,
-              panel.label.height=0.6,
-              panel.label.size=0.6,
-              panel.labels = c(2019, 2020))
+for (i in 1:10){
+  lc[[i]] = lsp_extract(c(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020)), window = win_size, id = lc_am_compare_sel$id[i])
 }
 
-tm = list()
+
+# Erzeugen der Graphiken als Liste
+# Letzte Graphik wird mit Legende aufgerufen
+# für interaktive Karten muss vt = "view" gesetzt werden
+tmv = list()
+vt = "plot"
 for (i in 1:length(lc)){
-tm[[i]] = tm_plot(lc[[i]])
-if (i == length(lc))
-  tm[[i]] = tm_plot(lc[[i]],ls=T)
+  tmv[[i]] = tm_plot(lc[[i]],vt=vt)
+  if (i == length(lc))
+    tmv[[i]] = tm_plot(lc[[i]],vt=vt,ls = TRUE)
 }
+# plotten der einzelnen paare
+tmv
 
-tmap_arrange(lapply(1:length(tm),function(i){tm[[i]]}),ncol=2,nrow = ceiling(length(tm)/2))
+# plotten der aller paare
+mv = tmap_arrange(lapply(1:length(tmv),function(i){tmv[[i]]}))
+mv
 
 #####
