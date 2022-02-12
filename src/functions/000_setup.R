@@ -92,3 +92,7 @@ raster::rasterOptions(tmpdir = envrmt$path_tmp)
 # suppres gdal warnings
 rgdal::set_thin_PROJ6_warnings(TRUE)
 mapviewOptions(fgb = FALSE)
+
+opts <- tmap_options(basemaps = c(Canvas = c("Esri.WorldGrayCanvas","OpenStreetMap"), Imagery = "Esri.WorldImagery"),
+                     overlays = c(Labels = paste0("http://services.arcgisonline.com/arcgis/rest/services/Canvas/",
+                                                  "World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}")))

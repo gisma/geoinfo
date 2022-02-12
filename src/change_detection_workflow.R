@@ -26,7 +26,7 @@ library(motif)
 get_sen = FALSE
 
 #--- schalter ob digitalisiert werden muss falls er auf FALSE gesetzt ist werden die
-# (zuvor erstellten und gesciherten Daten ) im else Teil der Verzeigung eingelesen
+# (zuvor erstellten und gesicherten Daten ) im else Teil der Verzweigung eingelesen
 digitize = FALSE
 
 ## setzen des aktuellen Projektverzeichnisses (erstellt mit envimaR) als root_folder
@@ -39,7 +39,7 @@ source(file.path(root_folder, "src/functions/000_setup.R"))
 # weitere Parameter
 
 # größe der Aggregationsfesnter für die CD Auswertung
-win_size = 50
+win_size = 10
 
 #--- Download der Daten
 # gui = TRUE ruft die GUI zur Kontrolle auf
@@ -58,17 +58,18 @@ pred_stack_2020 = raster::stack(list.files(file.path(envrmt$path_data_lev1,"RGB8
 
 # Einlesen der Corine Daten
 # Für den Download ist ein Konto notwendig https://land.copernicus.eu/pan-european/corine-land-cover
-# angenommen die Daten liegen im level0 Verzeichnis
-if (!file.exists(file.path(envrmt$path_data_lev0,"u2018_clc2018_v2020_20u1_raster100m/DATA/U2018_CLC2018_V2020_20u1.tif"))){
-  corine_eu = raster(file.path(envrmt$path_data_lev0,"u2018_clc2018_v2020_20u1_raster100m/DATA/U2018_CLC2018_V2020_20u1.tif"))
-  tmp = projectRaster(pred_stack_2019[[1]],crs = crs(corine_eu))
-  corine_crop = raster::crop(corine_eu,tmp)
-  corine_utm = projectRaster(corine_crop,crs = crs(pred_stack_2019))
-  corine = resample(corine_utm,pred_stack_2019[[1]])
-  raster::writeRaster(corine,file.path(envrmt$path_data_lev0,"/corine.tif"),overwrite=TRUE)
-} else{
-  corine = raster::raster(file.path(envrmt$path_data_lev0,"/corine.tif"))
-}
+# Daher die Daten manuell herunterladen und in das Verzeichnis kopieren und entpacken
+# Dann auskommentierten Tail ausführen
+# corine_eu = raster(file.path(envrmt$path_data_lev0,"u2018_clc2018_v2020_20u1_raster100m/DATA/U2018_CLC2018_V2020_20u1.tif"))
+# tmp = projectRaster(pred_stack_2019[[1]],crs = crs(corine_eu))
+# corine_crop = raster::crop(corine_eu,tmp)
+# corine_utm = projectRaster(corine_crop,crs = crs(pred_stack_2019))
+# corine = resample(corine_utm,pred_stack_2019[[1]])
+# raster::writeRaster(corine,file.path(envrmt$path_data_lev0,"/corine.tif"),overwrite=TRUE)
+
+# ansonsten den Beipieldatensatz laden
+corine = raster::raster(file.path(envrmt$path_data_lev0,"corine.tif"))
+
 # Erstellen einer Wald-Maske
 # Agro-forestry areas code=22, Broad-leaved forest code=23,
 # Coniferous forest code=24, Mixed forest code=25
@@ -111,10 +112,10 @@ mapview(mask*prediction_kmeans_2019$map,
         legend = TRUE,            # Legende zeigen
         alpha.regions = 1,        # layer undurchsichtig
         maxpixels =  1693870) +  #  volle auflösung
-  viewRGB(mask * pred_stack_2019,
-          r=4,g=5,b=6,
-          maxpixels =  1693870) +  # neue Ebene
-  mapview(mask*prediction_kmeans_2020$map,
+  viewRGB(mask * pred_stack_2019, # funktion viewRGB zeigt dreikanalige Raster Bilder
+          r=4,g=5,b=6,            # Kanäle aus dem angegebenen Rasterstack
+          maxpixels =  1693870) +
+  mapview(mask*prediction_kmeans_2020$map, # RSToolbox Rasterobjekte werden unter $map gespeichert
           at = seq(0, nclasses, 1),
           legend = FALSE,
           alpha.regions = 1,
@@ -124,68 +125,13 @@ mapview(mask*prediction_kmeans_2019$map,
           maxpixels =  1693870)
 
 #---- Digitalisierung der Trainingsdaten ----
+# Muß natürlich nur einmal gemacht werden
 if (digitize) {
-  # Für die überwachte Klassifikation benötigen wir Trainingsgebiete. Sie können Sie wie nachfolgend digitalisieren oder alternativ z.B. QGis verwenden
-
-  #--- 2019
-  # Kahlschlag
-  # Es wird das Falschfarbenkomosit in originaler Auflösung genutzt (maxpixels =  1693870)
-  # Bitte beachten Sie dass es (1) deutlich länger lädt und (2) Vegetation in Rot dargestellt wird.
-  # Die Kahlschäge sind jetzt grün
-  train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3, maxpixels =  1693870) %>% mapedit::editMap()
-  # Hinzufügen der Attribute class (text) und id (integer)
-  clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
-
-  # other: hier gilt es möglichst verteilt übers Bild möglichst alle nicht zu Kahlschlag  gehörenden Flächen zu erfassen.
-  train_area <- mapview::viewRGB(pred_stack_2019, r = 1, g = 2, b = 3) %>% mapedit::editMap()
-  other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
-
-  # rbind  kopiert die beiden obigen Vektorobjekte in eine Datei
-  train_areas_2019 <- rbind(clearcut, other)
-
-  # Umprojizieren auf die Raster Datei
-  train_areas_2019 = sf::st_transform(train_areas_2019,crs = sf::st_crs(pred_stack_2019))
-
-
-  # Extraktion der Trainingsdaten für die digitalisierten Flächen
-  tDF_2019 = exactextractr::exact_extract(pred_stack_2019, train_areas_2019,  force_df = TRUE,
-                                          include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
-  #  auch hier wieder zusamenkopieren in eine Datei
-  tDF_2019 = dplyr::bind_rows(tDF_2019)
-
-  # Löschen von etwaigen Zeilen die NA (no data) Werte enthalten
-  tDF_2019 = tDF_2019[complete.cases(tDF_2019) ,]
-  tDF_2019 = tDF_2019[ ,rowSums(is.na(tDF_2019)) == 0]
-
-  # check der extrahierten Daten
-  summary(tDF_2019)
-  mapview(train_areas_2019)+pred_stack_2019[[1]]
-
-  # Abspeichern als R-internes Datenformat
-  # ist im Repo hinterlegt und kann desahlb (zeile drunter) eingeladen werden
-  saveRDS(tDF_2019, paste0(envrmt$path_data,"train_areas_2019.rds"))
-
-
-  # # ---- Das gleiche muss für 2020 wiederholt werden zum digitalisieren und extrahieren bitte ent-kommentieren ----
-
-  # # Kahlschlag
-  train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g =5, b = 6,maxpixels =  1693870) %>% mapedit::editMap()
-  clearcut <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "clearcut", id = 1)
-  train_area <- mapview::viewRGB(pred_stack_2020, r = 4, g = 5, b = 6) %>% mapedit::editMap()
-  other <- train_area$finished$geometry %>% st_sf() %>% mutate(class = "other", id = 2)
-  train_areas_2020 <- rbind(clearcut, other)
-  train_areas_2020 = sf::st_transform(train_areas_2020,crs = sf::st_crs(pred_stack_2020))
-  tDF_2020 = exactextractr::exact_extract(pred_stack_2020, train_areas_2020,  force_df = TRUE,
-                                          include_cell = TRUE,include_xy = TRUE,full_colnames = TRUE,include_cols = "class")
-  tDF_2020 = dplyr::bind_rows(tDF_2020)
-  tDF_2020 = tDF_2020[  rowSums(is.na(tDF_2020)) == 0,]
-  saveRDS(tDF_2020, paste0(envrmt$path_data,"train_areas_2020.rds"))
-  #names(train_areas_2019) = c("class","nir","red_1","green_1","red_2","green_2","blue","EVI","MSAVI2","NDVI","SAVI","X","Y","cell","coverage_fraction")
+  source(file.path(root_folder, "src/functions/digitize.R"))
 } else {
   train_areas_2019 = readRDS(paste0(envrmt$path_data,"train_areas_2019.rds"))
   train_areas_2020 = readRDS(paste0(envrmt$path_data,"train_areas_2020.rds"))
 }
-
 
 
 ## ---- Überwachte  mit Klassifikation Random Forest ----
@@ -227,22 +173,60 @@ cv_model_2020 = train(trainDat_2020[,2:11],
 prediction_rf_2020  = raster::predict(pred_stack_2020 ,cv_model_2020, progress = "text")
 
 
-#---- Visualisierung mit tmap qtm (interaktive = "view", statisch = "plot")----
-tmap_mode("view")
-w1 = qtm(prediction_rf_2019)
-w2 = qtm(prediction_kmeans_2019$map)
-w3 = qtm(prediction_rf_2020)
-w4 = qtm(prediction_kmeans_2020$map)
-tmap_arrange(w1, w2, w3, w4)
+#---- Visualisierung mit tmap qtm() ----
+
+# (interaktiv = "view", statisch = "plot")
 tmap_mode("plot")
-w1 = qtm(prediction_rf_2019)
-w2 = qtm(prediction_kmeans_2019$map)
-w3 = qtm(prediction_rf_2020)
-w4 = qtm(prediction_kmeans_2020$map)
-tmap_arrange(w1, w2, w3, w4, widths = c(.33, .66))
+w1 = qtm(prediction_rf_2019,projection = 32632,inner.margins=0.01) +
+  tm_legend(scale= 0.5,
+            legend.outside=T,
+            title = "RF 2019",
+            title.size = 1.0) +
+  tm_grid()
+
+w2 = qtm(prediction_kmeans_2019$map,projection = 32632,inner.margins=0.01) +
+  tm_legend(scale= 0.5,
+            legend.outside=T,
+            title = "kmeans 2019",
+            title.size = 1.0) +
+  tm_grid()
+
+w3 = qtm(prediction_rf_2020,projection = 32632,inner.margins=0.01) +
+  tm_legend(scale= 0.5,
+            legend.outside=T,
+            title = "RF 2020",
+            title.size = 1.0) +
+  tm_grid()
+
+w4 = qtm(prediction_kmeans_2020$map,projection = 32632,inner.margins=0.01) +
+  tm_legend(scale= 0.5,
+            legend.outside=T,
+            title = "kmeans 2020",
+            title.size = 1.0) +
+  tm_grid()
+# ohne jede Anordnung
+w2;w4;w1;w3
+
+# mit der bordeigenen tmap fnktion tmap_arrrange()
+tmap_arrange(w1, w3, w2, w4,asp = NA)
+
+# mit dem paket gid (universell nutzbar um graphische ausgabe zu gestalten)
+# hier die aufteilung wi tmap_arrange()
+library(grid)
+grid.newpage()
+print(w2, vp=viewport(0.25, 0.25, width = 0.5, height = 0.5))
+print(w1, vp=viewport(0.25, 0.75, width = 0.5, height = 0.5))
+print(w4, vp=viewport(0.75, 0.25, width = 0.5, height = 0.5))
+print(w3, vp=viewport(0.75, 0.75, width = 0.5, height = 0.5))
+
+# mit dem paket cowplot
+library(cowplot)
+plot_grid(tmap_grob(w1),tmap_grob(w3),tmap_grob(w2),tmap_grob(w4),
+          labels = c('FIG A', 'FIG B', 'FIG C', 'FIG D'),
+          label_size= 10, vjust = 5.)
 
 
-## Maximum Likelihood Classification
+# ---- Maximum Likelihood Classification ----
 #  superClass() Funktion aus dem Paket RSToolbox
 
 # umwandeln der Tabelle in das geforderte SpatialdataPoint Objekt
@@ -262,22 +246,31 @@ prediction_mlc_2020       <- superClass(pred_stack_2020, trainData = trainDat_20
 prediction_mlc_2019
 prediction_mlc_2020
 
-## Interaktive Karte
-mapview(mask*prediction_rf_2019 , alpha.regions = 1, maxpixels =  1693870,
-        col.regions = mapviewPalette("mapviewRasterColors"),at = seq(0, nclasses, 1), legend = TRUE) +
-  mapview(mask*prediction_rf_2020, alpha.regions = 1, maxpixels =  1693870,
+## ---- Visualisierung mit mapview ----
+mapview::viewRGB(mask*pred_stack_2020, r = 4, g =5, b = 6,maxpixels =  1693870)+
+  mapview(mask*prediction_rf_2019 , alpha.regions = 0.5, maxpixels =  1693870,
+          col.regions = mapviewPalette("mapviewRasterColors"),at = seq(0, nclasses, 1), legend = TRUE) +
+  mapview(mask*prediction_rf_2020, alpha.regions = 0.5, maxpixels =  1693870,
           col.regions = mapviewPalette("mapviewRasterColors"),at = seq(0, nclasses, 1), legend = FALSE) +
-  mapview(mask*prediction_mlc_2019$map,alpha.regions = 1, maxpixels =  1693870,
+  mapview(mask*prediction_mlc_2019$map,alpha.regions = 0.5, maxpixels =  1693870,
           col.regions = mapviewPalette("mapviewRasterColors"),at = seq(0, nclasses, 1), legend = FALSE) +
-  mapview(mask*prediction_mlc_2020$map,alpha.regions = 1, maxpixels =  1693870,
+  mapview(mask*prediction_mlc_2020$map,alpha.regions = 0.5, maxpixels =  1693870,
           col.regions = mapviewPalette("mapviewRasterColors"),at = seq(0, nclasses, 1), legend = FALSE)
 
 
+## ---- Change Detection Auswertung ----
+
 # Differenzbild random forest
 comp1 = prediction_rf_2020 - prediction_rf_2019
-qtm(comp1)
+qtm(comp1)+
+  tm_legend(scale= 0.5,
+            legend.outside=T,
+            title = "kmeans 2019",
+            title.size = 1.0) +
+  tm_grid()
 
-# Extraktion KLASSENNAMEN
+
+# Extraktion der KLASSENNAMEN
 categories = levels(prediction_rf_2019)[[1]]$value
 categories
 
@@ -286,27 +279,33 @@ ct = raster::crosstab(prediction_rf_2020,prediction_rf_2019)
 rownames(ct) = categories
 colnames(ct) = categories
 ct
-# Berechnung der diversen Kappa Werte
+
+# Vergleich der Übereinstimmung unterschiedlicher Klassifikationen
+# (hier MaxLike und RF) mit Hilfe diverser Kappa Werte
 # https://giswerk.org/doku.php?id=r:r-tutorials:calculatekappa
+# 2019
 kstat(prediction_mlc_2019$map,prediction_rf_2019, perCategory = FALSE)
+# 2020
 kstat(prediction_mlc_2020$map,prediction_rf_2020,perCategory = FALSE)
 
 
-# Das Visualisieren der Veränderungen von jeder Klasse zu jeder Klasse
-# mit Bordmitteln ist etwas aufwendiger. Es werden dazu eininge Hilfsfunktionen
-# und Schleifen (loops) benötigt, da jede KAtegorie mit jeder Vergleihen werden muss
+# Die Darstellung der Veränderungen von jeder Klasse zu jeder Klasse ist mit
+# "Bordmitteln"  etwas aufwendiger. Da jede Kategorie mit jeder verglichen werden soll
+# müssen dazu ein paar Hilfsfunktionen und Schleifen (loops) eingesetzt werden
 
-# Hilfsfunktion vergleicht je zwei Raster
+# Hilfsfunktion changefrom() vergleicht je zwei Raster auf die Kategorien i,j
 changefrom=function(r1,r2,i,j){r1==i & r2==j}
 
-# Erzeugen aller vergleichsraster aus der Kontingenztabelle
-# mit der erstellten Hilfsunktion Lapply ist eine funktion die über eine Liste looped
+# Erzeugen aller Vergleichsraster der Kontingenztabelle
+# Die lapply funktionen sind integrierte FOR Schleifen die über die Liste der
+# Kategorien die Funktion changefrom() für die Kreuztabelle anwenden
 r = lapply(1:length(categories), function(i){lapply(1:length(categories), function(j){changefrom(prediction_rf_2019, prediction_rf_2020, i,j)})})
+r
 
-# Plotten der Raster  hierzu werden erneut alle Kategorien einzeln geplottet
+## ---- Visualsierung der Kreuztabellierten Von-Zu-Raster ----
+# Plotten der Raster hierzu werden erneut alle Kategorien einzeln geplottet
 # i und j sind hilfsvariablen um die korrekten Raster Layer ansprechen zu können.
 # t ist eine Hilfvariable um eine Liste für die Ergebnisbilder hochzählen zu können
-
 tmap_mode("view")
 t=i=j=1 # setze zählvariablen auf 1
 m=list() # erzeuge leere Liste für die Karten
@@ -334,24 +333,21 @@ for(cat1 in categories)  { # für jede Kategorie
 # Interaktive und synchronisierte Karten
 tmap::tmap_arrange(m,sync = TRUE)
 
-# #-- Das spatialEco Paket: Berechnung von Kappa für die win_size Umgebung
-# r.kappa2 <- spatialEco::raster.change(prediction_rf_2019,
-#                          prediction_rf_2020,
-#                          stat="kappa",
-#                          force.memory = TRUE)
-# mapview(r.kappa2)
 
-#-- Das package motif stellt ausgezeichnete Werkzeuge für die Change Detection Postanalyse zur Verfügung
+## ---- Analyse von Veränderungen mit dem paket motif ----
+# lsp_compare vergleicht zwei (oder mehr) kategoriale Karten
+# (change detection klassifikationen etc.) miteinander und nutzt für die
+# Ausgabe der Wahrscheinlichkeiten verschiedener räumlicher Aggregierungsstufen
+# und Merkmalsraum-Distanzen um Veränderungswahrscheinlichkeiten zu ermitteln
+mrf_compare_2020_2019 = lsp_compare(st_as_stars(mask*prediction_rf_2019),
+                                    st_as_stars(mask*prediction_rf_2020),
+                                    type = "cove",
+                                    dist_fun = "jensen-shannon",
+                                    window = win_size,
+                                    threshold = 0.9)
 
-# lsp_compare vergleicht zwei kategoriale Karten (change detction klassifikationen etc)
-# miteinander und nutzt für die Ausgabe der Wahrscheinlichkeiten verschiedene
-# Aggregierungsstufen und Wahrscheinlichkeitsschwellenwert eines zu in dist_fun bestimmten Entfernungsmasses
-mrf_compare_2020_2019 = lsp_compare(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020),
-                                    type = "cove", dist_fun = "jensen-shannon",
-                                    window = win_size, threshold = 0.9)
+# Visualisierung der Gesamtwahrscheinlichkeiten Achtung logarithmische Skala
 
-# Visualisierung der Gesamtwahrscheinlichkeiten
-# Achtung logarithmische Skala
 tmap_mode("plot")
 tm_compare2 = tm_shape(mrf_compare_2020_2019) +
   tm_raster("dist",
@@ -361,43 +357,48 @@ tm_compare2 = tm_shape(mrf_compare_2020_2019) +
             title =  "Distance (JSD)") +
   tm_layout(legend.show = TRUE,
             legend.text.size = 0.3,
-            legend.position = c(.0, 0.15),
-            legend.outside.position = "bottom",
-            legend.outside = TRUE)
+            legend.outside = TRUE) +
+  tm_legend(scale= 0.5,
+            legend.outside=T,
+            title = paste("RF 2019 vs 2020 ",win_size*10,"m**2" ),
+            title.size = 1.0) +
+  tm_grid()
+
 tm_compare2
 
+## --- Detail-Analyse teil 1
 # Identifikation der Gebiete (Referenz ist win_size) die maximale Veränderungen aufweisen
-# hier der logarithmisch skalierte Paramter "dist" soll größer 0.1 sein
+# im Beispiel soll  "dist" soll größer 0.001 sein (logarithmische Skalierung!)
 lc_am_compare_sel = st_as_sf(mrf_compare_2020_2019) %>%
-  subset(dist > 0.001)
-# Sortierung des Ergebnis nach Größe
+  subset(dist > 0.5)
+
+# Sortierung nach Größe
 lc_am_compare_sel = lc_am_compare_sel[order(lc_am_compare_sel$dist,decreasing = TRUE), ]
+lc_am_compare_sel
 
-# Plotten der top ten gebiete
-tm_plot(sel=lc_am_compare_sel[1:10,],ov = T)
+##- Visualsierung
+# Plotten der top ten gebiete wir nutzen die selbst geschriebene Funktion tm_plot()
+# siehe src/functions/fun_tmap.R
+tm_plot(sel=lc_am_compare_sel[1:nrow(lc_am_compare_sel),],ov = T)
+# als interaktive karte
+tm_plot(sel=lc_am_compare_sel[1:nrow(lc_am_compare_sel),],vt = "view",ov = T)
 
+
+## --- Detail-Analyse teil 2
 # Extraktion der top 10 change Gebiete
 lc=list()
 for (i in 1:10){
   lc[[i]] = lsp_extract(c(st_as_stars(prediction_rf_2019), st_as_stars(prediction_rf_2020)), window = win_size, id = lc_am_compare_sel$id[i])
 }
 
-
 # Erzeugen der Graphiken als Liste
-# Letzte Graphik wird mit Legende aufgerufen
-# für interaktive Karten muss vt = "view" gesetzt werden
 tmv = list()
-vt = "plot"
-for (i in 1:length(lc)){
-  tmv[[i]] = tm_plot(lc[[i]],vt=vt)
-  if (i == length(lc))
-    tmv[[i]] = tm_plot(lc[[i]],vt=vt,ls = TRUE)
-}
-# plotten der einzelnen paare
-tmv
+for (i in 1:4){
+  tmv[[i]] = tm_plot(lc[[i]])}
 
 # plotten der aller paare
-mv = tmap_arrange(lapply(1:length(tmv),function(i){tmv[[i]]}))
-mv
+tmap_arrange(tmv)
+tmap_options()
 
 #####
+
