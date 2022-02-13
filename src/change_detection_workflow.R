@@ -295,7 +295,7 @@ kappa_2020
 kappa_2020  %>%
   kbl(caption = "Kappa 2019 MLC vs RF",) %>%
   kable_classic(full_width = F) %>%
-  column_spec(1,color = "red", link = "https://haozhu233.github.io/kableExtra/")
+  column_spec(1,color = "red", link = "https://giswerk.org/doku.php?id=r:r-tutorials:calculatekappa")
 
 
 # Erzeugen aller Vergleichsraster der Kontingenztabelle
