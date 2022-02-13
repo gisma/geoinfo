@@ -35,3 +35,11 @@ tm_plot = function(x,sel=lc_am_compare_sel,vt="plot",ls=TRUE,ov=F){
     }
 }
 
+qtm_min = function(data=NULL, title=NULL,scale=0.5 ){
+qtm(data)+
+  tm_legend(scale= scale,
+            legend.outside=T,
+            title = title,
+            title.size = 1.0) +
+  tm_grid()
+  }

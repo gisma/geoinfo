@@ -14,13 +14,12 @@
 # Copyright: GPL (>= 3), Chris Reudenbach, creuden@gmail.com
 #
 
-
 #--- laden der notwendigen Bibliotheken
 # Achtung Pakete müssen evtl. manuell installiert werden
 library(envimaR)
 library(tmaptools)
 library(motif)
-
+library(kableExtra)
 
 #--- Schalter für den Download der sentinel daten
 get_sen = FALSE
@@ -38,10 +37,9 @@ source(file.path(root_folder, "src/functions/000_setup.R"))
 
 # weitere Parameter
 
-# größe der Aggregationsfesnter für die CD Auswertung
-# Distanz-Schwellenwert "dist" ist abhängig von wins_size
-# je kleiner win_size desto größer der Schwellenwert
-
+# größe der Aggregationsfesnter für die CD Auswertung Distanz-Schwellenwert
+# "dist" ist abhängig von wins_size je kleiner win_size desto größer der
+# Schwellenwert
 win_size = 25
 
 #--- Download der Daten
@@ -108,8 +106,10 @@ prediction_kmeans_2020 = unsuperClass(pred_stack_2020,
                                       norm = TRUE,
                                       algorithm = "MacQueen")
 
-# Visualisierung mit Mapview: mit dem + Zeichen können beliebige Raster und Vektor-Datenebnenen kombiniert werden
-# Bei der Ansicht fällt auf dass offensichtlich der Clusteralgorithmus keine zielführenden Klassen der Einstellung nClasses=2 erzeugt
+# Visualisierung mit Mapview: mit dem + Zeichen können beliebige Raster und
+# Vektor-Datenebnenen kombiniert werden Bei der Ansicht fällt auf dass
+# offensichtlich der Clusteralgorithmus keine zielführenden Klassen der
+# Einstellung nClasses=2 erzeugt
 mapview(mask*prediction_kmeans_2019$map,
         at = seq(0, nclasses, 1), # Anzahl der Legendenklassen
         legend = TRUE,            # Legende zeigen
@@ -230,10 +230,8 @@ plot_grid(tmap_grob(w1),tmap_grob(w3),tmap_grob(w2),tmap_grob(w4),
 
 
 # ---- Maximum Likelihood Classification ----
-#  superClass() Funktion aus dem Paket RSToolbox
-
-# umwandeln der Tabelle in das geforderte SpatialdataPoint Objekt
-# Identifikation der Koordinaten
+# superClass() Funktion aus dem Paket RSToolbox umwandeln der Tabelle in das
+# geforderte SpatialdataPoint Objekt Identifikation der Koordinaten
 sp::coordinates(trainDat_2019) = ~X+Y
 sp::coordinates(trainDat_2020) = ~X+Y
 # Zuweisen der korrekten Projektion (hier aus dem zugehörigen Raster-Stack)
@@ -264,52 +262,55 @@ mapview::viewRGB(mask*pred_stack_2020, r = 4, g =5, b = 6,maxpixels =  1693870)+
 ## ---- Change Detection Auswertung ----
 
 # Differenzbild random forest
-comp1 = prediction_rf_2020 - prediction_rf_2019
-qtm(comp1)+
-  tm_legend(scale= 0.5,
-            legend.outside=T,
-            title = "kmeans 2019",
-            title.size = 1.0) +
-  tm_grid()
+qtm_min(prediction_rf_2020 - prediction_rf_2019,title = "kmeans 2019")
 
-
-# ---- CDA Extraktion der KLASSENNAMEN ----
+# ---- CDA Extraktion der Klassennamen ----
 categories = levels(prediction_rf_2019)[[1]]$value
 categories
 
 # ---- Berechnung der Vierfeld Tabelle mit raster Basisfunktion ----
-ct = raster::crosstab(prediction_rf_2020,prediction_rf_2019)
+ct = raster::crosstab(prediction_rf_2019,prediction_rf_2020)
 rownames(ct) = categories
 colnames(ct) = categories
-ct
+ct %>%
+  kbl(caption = "Crosstab 2019 vs 2020",) %>%
+  kable_classic(full_width = F)
+
+# add_header_above(c("layer 1 " = 1, "layer 2" = 2))
 
 # ---- kappa ----
-# Vergleich der Übereinstimmung unterschiedlicher Klassifikationen
-# (hier MaxLike und RF) mit Hilfe diverser Kappa Werte
+# Vergleich der Übereinstimmung unterschiedlicher Klassifikationen (hier MaxLike
+# und RF) mit Hilfe diverser Kappa Werte
 # https://giswerk.org/doku.php?id=r:r-tutorials:calculatekappa
 # 2019
-kstat(prediction_mlc_2019$map,prediction_rf_2019, perCategory = FALSE)
+kappa_2019 = kstat(prediction_mlc_2019$map,prediction_rf_2019, perCategory = FALSE)
+kappa_2019
+kappa_2019  %>%
+  kbl(caption = "Kappa 2019 MLC vs RF",) %>%
+  kable_classic(full_width = F)
+
 # 2020
-kstat(prediction_mlc_2020$map,prediction_rf_2020,perCategory = FALSE)
+kappa_2020 = kstat(prediction_mlc_2020$map,prediction_rf_2020,perCategory = FALSE)
+kappa_2020
+kappa_2020  %>%
+  kbl(caption = "Kappa 2019 MLC vs RF",) %>%
+  kable_classic(full_width = F) %>%
+  column_spec(1,color = "red", link = "https://haozhu233.github.io/kableExtra/")
 
-
-# ---- Berechnung change from - to ----
-# Die Darstellung der Veränderungen von jeder Klasse zu jeder Klasse ist mit
-# "Bordmitteln"  etwas aufwendiger. Da jede Kategorie mit jeder verglichen werden soll
-# müssen dazu ein paar Hilfsfunktionen und Schleifen (loops) eingesetzt werden
-# Hilfsfunktion changefrom() vergleicht je zwei Raster auf die Kategorien i,j
-changefrom=function(r1,r2,i,j){r1==i & r2==j}
 
 # Erzeugen aller Vergleichsraster der Kontingenztabelle
 # Die lapply funktionen sind integrierte FOR Schleifen die über die Liste der
 # Kategorien die Funktion changefrom() für die Kreuztabelle anwenden
-r = lapply(1:length(categories), function(i){lapply(1:length(categories), function(j){changefrom(prediction_rf_2019, prediction_rf_2020, i,j)})})
+r = lapply(1:length(categories),
+           function(i){lapply(1:length(categories),
+                              function(j){changefrom(prediction_rf_2019, prediction_rf_2020, i,j)})})
 r
 
 # ---- Visualsierung der Kreuztabellierten Von-Zu-Raster ----
-# Plotten der Raster hierzu werden erneut alle Kategorien einzeln geplottet
-# i und j sind hilfsvariablen um die korrekten Raster Layer ansprechen zu können.
-# t ist eine Hilfvariable um eine Liste für die Ergebnisbilder hochzählen zu können
+# Plotten der Raster hierzu werden erneut alle Kategorien einzeln geplottet i
+# und j sind hilfsvariablen um die korrekten Raster Layer ansprechen zu können.
+# t ist eine Hilfvariable um eine Liste für die Ergebnisbilder hochzählen zu
+# können
 tmap_mode("view")
 t=i=j=1 # setze zählvariablen auf 1
 m=list() # erzeuge leere Liste für die Karten
@@ -339,10 +340,10 @@ tmap::tmap_arrange(m,sync = TRUE)
 
 
 # ---- Analyse von Veränderungen mit dem paket motif ----
-# lsp_compare vergleicht zwei (oder mehr) kategoriale Karten
-# (change detection klassifikationen etc.) miteinander und nutzt für die
-# Ausgabe der Wahrscheinlichkeiten verschiedener räumlicher Aggregierungsstufen
-# und Merkmalsraum-Distanzen um Veränderungswahrscheinlichkeiten zu ermitteln
+# lsp_compare vergleicht zwei (oder mehr) kategoriale Karten (change detection
+# klassifikationen etc.) miteinander und nutzt für die Ausgabe der
+# Wahrscheinlichkeiten verschiedener räumlicher Aggregierungsstufen und
+# Merkmalsraum-Distanzen um Veränderungswahrscheinlichkeiten zu ermitteln
 mrf_compare_2020_2019 = lsp_compare(st_as_stars(mask*prediction_rf_2019),
                                     st_as_stars(mask*prediction_rf_2020),
                                     type = "cove",
@@ -371,8 +372,9 @@ tm_compare2 = tm_shape(mrf_compare_2020_2019) +
 tm_compare2
 
 # ---- Detail-Analyse Teil 1 ----
-# Identifikation der Gebiete (Referenz ist win_size) die maximale Veränderungen aufweisen
-# im Beispiel soll  "dist" soll größer 0.001 sein (logarithmische Skalierung!)
+# Identifikation der Gebiete (Referenz ist win_size) die maximale Veränderungen
+# aufweisen im Beispiel soll  "dist" soll größer 0.001 sein (logarithmische
+# Skalierung!)
 lc_am_compare_sel = st_as_sf(mrf_compare_2020_2019) %>%
   subset(dist > 0.01)
 
@@ -389,10 +391,9 @@ tm_plot(sel=lc_am_compare_sel[1:nrow(lc_am_compare_sel),],vt = "view",ov = T)
 
 
 # ---- Visualsierng Detail-Analyse ----
-# Extraktion nach der sortierten Liste lc_comapare_sel  werden die top 10
-# change detection hotspots Daten extrahiert und in die liste lc geschrieben
-lc = lapply(seq(1:10),
-            function(i){
+# Extraktion nach der sortierten Liste lc_comapare_sel  werden die top 10 change
+# detection hotspots Daten extrahiert und in die liste lc geschrieben
+lc = lapply(seq(1:10),function(i){
               lsp_extract(c(st_as_stars(prediction_rf_2019),
                             st_as_stars(prediction_rf_2020)),
                           window = win_size,
@@ -400,8 +401,7 @@ lc = lapply(seq(1:10),
             })
 
 # Erzeugen der top 3 Change Detection Hotspots KArten-Ausschnitte
-tm_lc = lapply(seq(1:3),
-             function(i){
+tm_lc = lapply(seq(1:3),function(i){
                tm_plot(lc[[i]])
              })
 
