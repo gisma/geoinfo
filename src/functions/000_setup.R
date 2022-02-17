@@ -13,7 +13,7 @@ require(envimaR)
 
 # basic packages
 packagesToLoad = c("mapview", "mapedit", "tmap", "raster", "terra", "stars", "gdalcubes", "sf","dplyr","tidyverse","RStoolbox",
-                   "randomForest", "ranger", "e1071","caret","rprojroot","sen2r")
+                   "randomForest", "ranger", "e1071","caret","rprojroot","sen2r","tmaptools","motif","kableExtra")
 
 
 # mandantory folder structure

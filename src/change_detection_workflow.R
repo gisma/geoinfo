@@ -400,7 +400,7 @@ lc = lapply(seq(1:10),function(i){
                           id = lc_am_compare_sel$id[i])
             })
 
-# Erzeugen der top 3 Change Detection Hotspots KArten-Ausschnitte
+# Erzeugen der top 3 Change Detection Hotspots Karten-Ausschnitte
 tm_lc = lapply(seq(1:3),function(i){
                tm_plot(lc[[i]])
              })
